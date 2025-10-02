@@ -1,0 +1,78 @@
+services:
+    kakaku:
+        build:
+            context: https://github.com/gkjg8787/kakakuscraping-fastapi.git
+        ports:
+            - "8000:8000"
+        init: true
+        volumes:
+            - ./kakaku/settings.py:/app/kakaku/settings.py
+    search2kakaku:
+        build:
+            context: https://github.com/gkjg8787/search2kakaku.git
+        tty: true
+        init: true
+        depends_on:
+            - search
+        volumes:
+            - ./search2kakaku/settings.py:/app/search2kakaku/settings.py
+            - ./data/search2kakaku/db:/app/db
+            - ./data/search2kakaku/log:/app/log
+    selenium:
+        container_name: selenium-chrome
+        image: selenium/standalone-chrome
+        ports:
+            - "4444:4444"
+            - "5900:5900"
+            - "7900:7900"
+        shm_size: "2gb"
+        ulimits:
+            nofile:
+                soft: 32768
+                hard: 32768
+    search:
+        build:
+            context: https://github.com/gkjg8787/external_search.git
+        ports:
+            - "8060:8060"
+        env_file:
+            - ./search/.env
+        volumes:
+            - ./search/settings.py:/app/ex_search/settings.py
+        depends_on:
+            - selenium
+            - nodriver_api
+    redis:
+        image: redis:latest
+        container_name: redis_broker
+        ports:
+            - "6379:6379"
+    celery_worker:
+        build:
+            context: https://github.com/gkjg8787/search2kakaku.git
+        container_name: celery_worker
+        command: celery -A tasks worker --loglevel=info --concurrency=1
+        volumes:
+            - ./search2kakaku/settings.py:/app/search2kakaku/settings.py
+            - ./data/search2kakaku/db:/app/db
+            - ./data/search2kakaku/log:/app/log
+        depends_on:
+            - redis
+    celery_beat:
+        build:
+            context: https://github.com/gkjg8787/search2kakaku.git
+        container_name: celery_beat
+        command: celery -A tasks beat --loglevel=info
+        volumes:
+            - ./search2kakaku/settings.py:/app/search2kakaku/settings.py
+            - ./data/search2kakaku/db:/app/db
+            - ./data/search2kakaku/log:/app/log
+        depends_on:
+            - redis
+    nodriver_api:
+        build:
+            context: https://github.com/gkjg8787/nodriver_api.git
+        init: true
+        ports:
+            - "8090:8090"
+
